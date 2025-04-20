@@ -157,15 +157,13 @@ void MainWindow::setupUI()
     miniInfoLayout->setSpacing(2);
 
     miniTitleLabel = new QLabel(miniPlayer);
-    miniTitleLabel->setStyleSheet(Theme::LABEL_STYLE + "font-weight: bold; border: none;");
+    miniTitleLabel->setStyleSheet(Theme::LABEL_STYLE + "font-size: 24pt; font-weight: bold; border: none;");
+    miniTitleLabel->setAlignment(Qt::AlignCenter);
     miniInfoLayout->addWidget(miniTitleLabel);
 
     miniArtistLabel = new QLabel(miniPlayer);
     miniArtistLabel->setStyleSheet(Theme::LABEL_STYLE + "color: palette(mid); border: none;");
     miniInfoLayout->addWidget(miniArtistLabel);
-
-    // Initialize nowPlayingLabel which is used but never properly created
-    nowPlayingLabel = miniTitleLabel;
     
     miniLayout->addWidget(miniInfo);
     miniLayout->addStretch();
@@ -191,6 +189,23 @@ void MainWindow::setupUI()
     QVBoxLayout *fullscreenLayout = new QVBoxLayout(fullscreenPlayer);
     fullscreenLayout->setContentsMargins(20, 20, 20, 20);
     fullscreenLayout->setSpacing(20);
+
+    // Add back button at the top
+    QWidget *topBar = new QWidget(fullscreenPlayer);
+    QHBoxLayout *topBarLayout = new QHBoxLayout(topBar);
+    topBarLayout->setContentsMargins(0, 0, 0, 0);
+    topBarLayout->setSpacing(10);
+
+    QPushButton *backButton = new QPushButton(fullscreenPlayer);
+    backButton->setIcon(QIcon::fromTheme("go-previous"));
+    backButton->setFixedSize(32, 32);
+    backButton->setStyleSheet(Theme::BUTTON_STYLE + "QPushButton { border: none; }");
+    backButton->setToolTip("Back to main screen");
+    connect(backButton, &QPushButton::clicked, this, &MainWindow::hideFullscreenPlayer);
+    topBarLayout->addWidget(backButton);
+    topBarLayout->addStretch();
+
+    fullscreenLayout->addWidget(topBar);
 
     // Album art - make it responsive
     fullscreenAlbumArt = new QLabel(fullscreenPlayer);
@@ -488,6 +503,9 @@ void MainWindow::showFullscreenPlayer()
     // Hide the mini player
     miniPlayer->hide();
     
+    // Store the original window size before going fullscreen
+    originalWindowSize = size();
+    
     // Find the index of the fullscreen player in the stacked widget
     int fullscreenIndex = -1;
     for (int i = 0; i < pages->count(); ++i) {
@@ -586,7 +604,7 @@ void MainWindow::hideFullscreenPlayer()
 {
     // Fade out animation
     fullscreenAnimation = new QPropertyAnimation(fullscreenOpacityEffect, "opacity");
-    fullscreenAnimation->setDuration(300);
+    fullscreenAnimation->setDuration(150);  // Reduced from 300ms to 150ms
     fullscreenAnimation->setStartValue(1.0);
     fullscreenAnimation->setEndValue(0.0);
     connect(fullscreenAnimation, &QPropertyAnimation::finished, [this]() {
@@ -595,6 +613,12 @@ void MainWindow::hideFullscreenPlayer()
         
         // Show the mini player again
         miniPlayer->show();
+        
+        // Restore the original window size
+        resize(originalWindowSize);
+        
+        // Reset size constraints
+        setMinimumSize(400, 300);
     });
     fullscreenAnimation->start();
 }
@@ -797,10 +821,7 @@ void MainWindow::updateMetadata()
                 }
                 
                 // Update mini player labels
-                titleLabel->setText(title);
-                artistLabel->setText(artist);
-                // Don't update albumLabel text
-                nowPlayingLabel->setText(title);
+                miniTitleLabel->setText(title);
                 miniArtistLabel->setText(artist);
                 
                 // Update fullscreen player labels
@@ -827,17 +848,15 @@ void MainWindow::updateMetadata()
     } catch (const std::exception& e) {
         qDebug() << "Error updating metadata:" << e.what();
         // Set safe fallback values
-        titleLabel->setText("Unknown Title");
-        artistLabel->setText("Unknown Artist");
-        // Don't update albumLabel text
-        nowPlayingLabel->setText("Unknown Title");
+        miniTitleLabel->setText("Unknown Title");
         miniArtistLabel->setText("Unknown Artist");
+        // Don't update albumLabel text
+        fullscreenTitleLabel->setText("Unknown Title");
+        fullscreenArtistLabel->setText("Unknown Artist");
         albumArtLabel->setText("No Album Art");
         miniAlbumArt->setText("No Art");
         
         // Set safe fallback values for fullscreen player
-        fullscreenTitleLabel->setText("Unknown Title");
-        fullscreenArtistLabel->setText("Unknown Artist");
         fullscreenAlbumArt->setText("No Album Art");
     }
 }

@@ -108,6 +108,7 @@ private:
     QListWidget *artistsList;
     QListWidget *playlistsList;
     bool sidebarVisible;
+    QSize originalWindowSize;  // Store the original window size
 };
 
 #endif // MAINWINDOW_H 
