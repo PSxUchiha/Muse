@@ -4,60 +4,85 @@
 MusicPlayer::MusicPlayer(QObject *parent)
     : QObject(parent)
     , m_player(new QMediaPlayer(this))
+    , m_audioOutput(new QAudioOutput(this))
 {
-    connect(m_player, &QMediaPlayer::stateChanged, this, &MusicPlayer::playbackStateChanged);
-    connect(m_player, &QMediaPlayer::positionChanged, this, &MusicPlayer::positionChanged);
-    connect(m_player, &QMediaPlayer::durationChanged, this, &MusicPlayer::durationChanged);
-    connect(m_player, static_cast<void(QMediaPlayer::*)(QMediaPlayer::Error)>(&QMediaPlayer::error),
-            this, [this](QMediaPlayer::Error error) {
-        emit this->error(m_player->errorString());
-    });
+    m_player->setAudioOutput(m_audioOutput);
+    
+    // Connect player signals
+    connect(m_player, &QMediaPlayer::playbackStateChanged,
+            this, [this](QMediaPlayer::PlaybackState state) {
+                switch (state) {
+                    case QMediaPlayer::PlaybackState::PlayingState:
+                        emit stateChanged(PlaybackState::Playing);
+                        break;
+                    case QMediaPlayer::PlaybackState::PausedState:
+                        emit stateChanged(PlaybackState::Paused);
+                        break;
+                    case QMediaPlayer::PlaybackState::StoppedState:
+                        emit stateChanged(PlaybackState::Stopped);
+                        break;
+                }
+            });
 
-    connect(m_player, &QMediaPlayer::metaDataAvailableChanged, this, [this](bool available) {
-        if (available) {
-            QString title = m_player->metaData(QMediaMetaData::Title).toString();
-            if (title != m_currentSong) {
-                m_currentSong = title;
-                emit currentSongChanged();
-            }
+    connect(m_player, &QMediaPlayer::positionChanged,
+            this, &MusicPlayer::positionChanged);
+    
+    connect(m_player, &QMediaPlayer::durationChanged,
+            this, &MusicPlayer::durationChanged);
 
-            QString artist = m_player->metaData(QMediaMetaData::AlbumArtist).toString();
-            if (artist != m_currentArtist) {
-                m_currentArtist = artist;
-                emit currentArtistChanged();
-            }
+    connect(m_player, &QMediaPlayer::errorOccurred,
+            this, [this](QMediaPlayer::Error error, const QString &errorString) {
+                emit this->error(errorString);
+            });
 
-            QUrl artwork = m_player->metaData(QMediaMetaData::CoverArtUrlLarge).toUrl();
-            if (artwork != m_currentArtwork) {
-                m_currentArtwork = artwork;
-                emit currentArtworkChanged();
-            }
-        }
-    });
+    connect(m_player, &QMediaPlayer::metaDataChanged,
+            this, [this]() {
+                const QMediaMetaData metaData = m_player->metaData();
+                
+                QString title = metaData.stringValue(QMediaMetaData::Title);
+                if (!title.isEmpty() && title != m_currentSong) {
+                    m_currentSong = title;
+                    emit currentSongChanged();
+                }
+
+                QString artist = metaData.stringValue(QMediaMetaData::AlbumArtist);
+                if (artist.isEmpty()) {
+                    artist = metaData.stringValue(QMediaMetaData::ContributingArtist);
+                }
+                if (!artist.isEmpty() && artist != m_currentArtist) {
+                    m_currentArtist = artist;
+                    emit currentArtistChanged();
+                }
+
+                QUrl artwork = metaData.value(QMediaMetaData::ThumbnailImage).toUrl();
+                if (artwork.isEmpty()) {
+                    artwork = metaData.value(QMediaMetaData::CoverArtImage).toUrl();
+                }
+                if (!artwork.isEmpty() && artwork != m_currentArtwork) {
+                    m_currentArtwork = artwork;
+                    emit currentArtworkChanged();
+                }
+            });
+
+    // Set initial volume
+    m_audioOutput->setVolume(0.5); // 50%
 }
 
 MusicPlayer::~MusicPlayer()
 {
+    stop();
 }
 
-QString MusicPlayer::currentSong() const
+PlaybackState MusicPlayer::state() const
 {
-    return m_currentSong.isEmpty() ? "No Song Playing" : m_currentSong;
-}
-
-QString MusicPlayer::currentArtist() const
-{
-    return m_currentArtist.isEmpty() ? "Unknown Artist" : m_currentArtist;
-}
-
-QUrl MusicPlayer::currentArtwork() const
-{
-    return m_currentArtwork;
-}
-
-bool MusicPlayer::isPlaying() const
-{
-    return m_player->state() == QMediaPlayer::PlayingState;
+    switch (m_player->playbackState()) {
+        case QMediaPlayer::PlaybackState::PlayingState:
+            return PlaybackState::Playing;
+        case QMediaPlayer::PlaybackState::PausedState:
+            return PlaybackState::Paused;
+        default:
+            return PlaybackState::Stopped;
+    }
 }
 
 qint64 MusicPlayer::position() const
@@ -68,6 +93,11 @@ qint64 MusicPlayer::position() const
 qint64 MusicPlayer::duration() const
 {
     return m_player->duration();
+}
+
+int MusicPlayer::volume() const
+{
+    return static_cast<int>(m_audioOutput->volume() * 100);
 }
 
 void MusicPlayer::play()
@@ -92,10 +122,11 @@ void MusicPlayer::seek(qint64 position)
 
 void MusicPlayer::setSource(const QUrl &url)
 {
-    m_player->setMedia(url);
+    m_player->setSource(url);
 }
 
-void MusicPlayer::setVolume(float volume)
+void MusicPlayer::setVolume(int volume)
 {
-    m_player->setVolume(qRound(volume * 100));
+    m_audioOutput->setVolume(volume / 100.0);
+    emit volumeChanged(volume);
 } 

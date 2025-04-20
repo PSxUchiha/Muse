@@ -10,6 +10,7 @@
 #include <QDebug>
 #include <QResizeEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QStyleFactory>
 #include <QStyleOption>
 #include <QStylePainter>
@@ -74,27 +75,6 @@ void MainWindow::setupUI()
     mainLayout->setSpacing(0);
     setCentralWidget(centralWidget);
 
-    // Create top bar with menu button
-    QWidget *topBar = new QWidget;
-    QHBoxLayout *topLayout = new QHBoxLayout(topBar);
-    topLayout->setContentsMargins(10, 5, 10, 5);
-
-    // Create menu button and move it to the left
-    menuButton = new QToolButton(this);
-    menuButton->setIcon(QIcon::fromTheme("application-menu"));
-    menuButton->setFixedSize(32, 32);
-    menuButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    menuButton->setStyleSheet(Theme::TOOL_BUTTON_STYLE);
-    connect(menuButton, &QToolButton::clicked, this, [this]() {
-        sidebarVisible = !sidebarVisible;
-        sidebar->setVisible(sidebarVisible);
-    });
-
-    topLayout->addWidget(menuButton);
-    
-    topLayout->addStretch();
-    mainLayout->addWidget(topBar);
-
     // Setup sidebar
     setupSidebar();
     QHBoxLayout *contentLayout = new QHBoxLayout;
@@ -106,12 +86,14 @@ void MainWindow::setupUI()
 
     // Create main content area
     QWidget *mainContent = new QWidget;
+    mainContent->setStyleSheet("QWidget { background: transparent; border: none; }");
     QVBoxLayout *mainContentLayout = new QVBoxLayout(mainContent);
     mainContentLayout->setContentsMargins(0, 0, 0, 0);
     mainContentLayout->setSpacing(0);
 
     // Setup pages
     setupPages();
+    pages->setStyleSheet(Theme::MAIN_WINDOW_STYLE + "QWidget { border: none; }");
     mainContentLayout->addWidget(pages);
 
     contentLayout->addWidget(mainContent);
@@ -120,7 +102,7 @@ void MainWindow::setupUI()
     // Create mini player
     miniPlayer = new QWidget(this);
     miniPlayer->setFixedHeight(80);
-    miniPlayer->setStyleSheet(Theme::MINI_PLAYER_STYLE);
+    miniPlayer->setStyleSheet(Theme::MINI_PLAYER_STYLE + "QWidget { border: none; }");
 
     QHBoxLayout *miniLayout = new QHBoxLayout(miniPlayer);
     miniLayout->setContentsMargins(10, 5, 10, 5);
@@ -135,28 +117,38 @@ void MainWindow::setupUI()
     previousButton = new QPushButton(miniPlayer);
     previousButton->setIcon(QIcon::fromTheme("media-skip-backward"));
     previousButton->setFixedSize(32, 32);
-    previousButton->setStyleSheet(Theme::BUTTON_STYLE);
+    previousButton->setStyleSheet(Theme::BUTTON_STYLE + "QPushButton { border: none; }");
     miniControlsLayout->addWidget(previousButton);
 
     playPauseButton = new QPushButton(miniPlayer);
     playPauseButton->setIcon(QIcon::fromTheme("media-playback-start"));
     playPauseButton->setFixedSize(32, 32);
-    playPauseButton->setStyleSheet(Theme::BUTTON_STYLE);
+    playPauseButton->setStyleSheet(Theme::BUTTON_STYLE + "QPushButton { border: none; }");
     miniControlsLayout->addWidget(playPauseButton);
 
     nextButton = new QPushButton(miniPlayer);
     nextButton->setIcon(QIcon::fromTheme("media-skip-forward"));
     nextButton->setFixedSize(32, 32);
-    nextButton->setStyleSheet(Theme::BUTTON_STYLE);
+    nextButton->setStyleSheet(Theme::BUTTON_STYLE + "QPushButton { border: none; }");
     miniControlsLayout->addWidget(nextButton);
 
     miniLayout->addWidget(miniControls);
 
     // Mini player album art
-    miniAlbumArt = new QLabel(miniPlayer);
+    QWidget *miniArtContainer = new QWidget(miniPlayer);
+    miniArtContainer->setFixedSize(60, 60);
+    miniArtContainer->setStyleSheet("QWidget { background: transparent; border: none; }");
+    QVBoxLayout *miniArtLayout = new QVBoxLayout(miniArtContainer);
+    miniArtLayout->setContentsMargins(0, 0, 0, 0);
+    miniArtLayout->setSpacing(0);
+
+    miniAlbumArt = new QLabel(miniArtContainer);
     miniAlbumArt->setFixedSize(60, 60);
-    miniAlbumArt->setStyleSheet("background-color: palette(mid); border-radius: 5px;");
-    miniLayout->addWidget(miniAlbumArt);
+    miniAlbumArt->setStyleSheet("QLabel { background-color: transparent; border: none; border-radius: 5px; }");
+    miniAlbumArt->setAlignment(Qt::AlignCenter);
+    miniArtLayout->addWidget(miniAlbumArt);
+
+    miniLayout->addWidget(miniArtContainer);
 
     // Mini player info
     QWidget *miniInfo = new QWidget(miniPlayer);
@@ -165,11 +157,11 @@ void MainWindow::setupUI()
     miniInfoLayout->setSpacing(2);
 
     miniTitleLabel = new QLabel(miniPlayer);
-    miniTitleLabel->setStyleSheet(Theme::LABEL_STYLE + "font-weight: bold;");
+    miniTitleLabel->setStyleSheet(Theme::LABEL_STYLE + "font-weight: bold; border: none;");
     miniInfoLayout->addWidget(miniTitleLabel);
 
     miniArtistLabel = new QLabel(miniPlayer);
-    miniArtistLabel->setStyleSheet(Theme::LABEL_STYLE + "color: palette(mid);");
+    miniArtistLabel->setStyleSheet(Theme::LABEL_STYLE + "color: palette(mid); border: none;");
     miniInfoLayout->addWidget(miniArtistLabel);
 
     // Initialize nowPlayingLabel which is used but never properly created
@@ -283,7 +275,7 @@ void MainWindow::setupUI()
     resize(800, 600);
     setStyleSheet(Theme::MAIN_WINDOW_STYLE);
 
-    // Set tracks page as default
+    // Set albums page as default
     switchToPage(0);
     
     // Initialize other required labels used in updateMetadata()
@@ -325,49 +317,53 @@ void MainWindow::setupSidebar()
 void MainWindow::setupPages()
 {
     pages = new QStackedWidget(this);
-    pages->setStyleSheet(Theme::MAIN_WINDOW_STYLE);
+    pages->setStyleSheet(Theme::MAIN_WINDOW_STYLE + "QWidget { border: none; }");
     pages->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-    // Tracks page
-    tracksPage = new QWidget;
-    QVBoxLayout *tracksLayout = new QVBoxLayout(tracksPage);
-    tracksLayout->setContentsMargins(0, 0, 0, 0);
-    tracksList = new QListWidget;
-    tracksList->setStyleSheet(Theme::LIST_WIDGET_STYLE);
-    tracksLayout->addWidget(tracksList);
-    pages->addWidget(tracksPage);
-    
-    // Initialize playlistWidget
-    playlistWidget = tracksList;
-
-    // Albums page
+    // Albums page (now main page)
     albumsPage = new QWidget;
+    albumsPage->setStyleSheet("QWidget { background: transparent; border: none; }");
     QVBoxLayout *albumsLayout = new QVBoxLayout(albumsPage);
     albumsLayout->setContentsMargins(0, 0, 0, 0);
     albumsList = new QListWidget;
-    albumsList->setStyleSheet(Theme::LIST_WIDGET_STYLE);
+    albumsList->setStyleSheet(Theme::LIST_WIDGET_STYLE + "QListWidget { border: none; }");
     albumsLayout->addWidget(albumsList);
     pages->addWidget(albumsPage);
+    
+    // Initialize playlistWidget to albumsList
+    playlistWidget = albumsList;
+
+    // Tracks page (now secondary)
+    tracksPage = new QWidget;
+    tracksPage->setStyleSheet("QWidget { background: transparent; border: none; }");
+    QVBoxLayout *tracksLayout = new QVBoxLayout(tracksPage);
+    tracksLayout->setContentsMargins(0, 0, 0, 0);
+    tracksList = new QListWidget;
+    tracksList->setStyleSheet(Theme::LIST_WIDGET_STYLE + "QListWidget { border: none; }");
+    tracksLayout->addWidget(tracksList);
+    pages->addWidget(tracksPage);
 
     // Artists page
     artistsPage = new QWidget;
+    artistsPage->setStyleSheet("QWidget { background: transparent; border: none; }");
     QVBoxLayout *artistsLayout = new QVBoxLayout(artistsPage);
     artistsLayout->setContentsMargins(0, 0, 0, 0);
     artistsList = new QListWidget;
-    artistsList->setStyleSheet(Theme::LIST_WIDGET_STYLE);
+    artistsList->setStyleSheet(Theme::LIST_WIDGET_STYLE + "QListWidget { border: none; }");
     artistsLayout->addWidget(artistsList);
     pages->addWidget(artistsPage);
 
     // Playlists page
     playlistsPage = new QWidget;
+    playlistsPage->setStyleSheet("QWidget { background: transparent; border: none; }");
     QVBoxLayout *playlistsLayout = new QVBoxLayout(playlistsPage);
     playlistsLayout->setContentsMargins(0, 0, 0, 0);
     playlistsList = new QListWidget;
-    playlistsList->setStyleSheet(Theme::LIST_WIDGET_STYLE);
+    playlistsList->setStyleSheet(Theme::LIST_WIDGET_STYLE + "QListWidget { border: none; }");
     playlistsLayout->addWidget(playlistsList);
     pages->addWidget(playlistsPage);
 
-    // Set tracks page as default
+    // Set albums page as default
     switchToPage(0);
 }
 
@@ -492,12 +488,6 @@ void MainWindow::showFullscreenPlayer()
     // Hide the mini player
     miniPlayer->hide();
     
-    // Replace hamburger menu with back button
-    menuButton->setIcon(QIcon::fromTheme("go-previous"));
-    menuButton->setToolTip("Back to main screen");
-    disconnect(menuButton, &QToolButton::clicked, nullptr, nullptr);
-    connect(menuButton, &QToolButton::clicked, this, &MainWindow::hideFullscreenPlayer);
-    
     // Find the index of the fullscreen player in the stacked widget
     int fullscreenIndex = -1;
     for (int i = 0; i < pages->count(); ++i) {
@@ -605,15 +595,6 @@ void MainWindow::hideFullscreenPlayer()
         
         // Show the mini player again
         miniPlayer->show();
-        
-        // Restore hamburger menu
-        menuButton->setIcon(QIcon::fromTheme("application-menu"));
-        menuButton->setToolTip("");
-        disconnect(menuButton, &QToolButton::clicked, nullptr, nullptr);
-        connect(menuButton, &QToolButton::clicked, this, [this]() {
-            sidebarVisible = !sidebarVisible;
-            sidebar->setVisible(sidebarVisible);
-        });
     });
     fullscreenAnimation->start();
 }
@@ -662,37 +643,66 @@ void MainWindow::onDurationChanged(qint64 duration)
 
 void MainWindow::onPlaylistPositionChanged(int position)
 {
-    if (position >= 0 && position < musicLibrary->audioFiles().size()) {
-        QString filePath = musicLibrary->audioFiles()[position];
-        qDebug() << "Playing file:" << filePath;
-        
-        // Set the media source with error handling
-        QUrl url = QUrl::fromLocalFile(filePath);
-        if (url.isValid()) {
-            mediaPlayer->setSource(url);
-            // Don't auto-play, just update metadata
-            updateMetadata();     // Update metadata immediately
+    if (position >= 0) {
+        QString filePath;
+        if (playlistWidget == albumsList) {
+            // If we're in the albums view, get the first track of the selected album
+            QListWidgetItem *albumItem = albumsList->item(position);
+            if (albumItem) {
+                QStringList albumFiles = albumItem->data(Qt::UserRole).toStringList();
+                if (!albumFiles.isEmpty()) {
+                    filePath = albumFiles.first();
+                }
+            }
         } else {
-            qDebug() << "Invalid file URL:" << filePath;
-            nowPlayingLabel->setText("Error: Invalid file");
-            miniArtistLabel->setText("");
+            // If we're in the tracks view, get the selected track
+            if (position < musicLibrary->audioFiles().size()) {
+                filePath = musicLibrary->audioFiles()[position];
+            }
+        }
+
+        if (!filePath.isEmpty()) {
+            QUrl url = QUrl::fromLocalFile(filePath);
+            if (url.isValid()) {
+                mediaPlayer->setSource(url);
+                updateMetadata();
+            }
         }
     }
 }
 
 void MainWindow::onAudioFilesChanged(const QStringList& files)
 {
+    // Clear both lists
+    albumsList->clear();
     tracksList->clear();
-    qDebug() << "Updating tracks list with" << files.size() << "files";
-
-    for (const QString &filePath : files) {
-        QString fileName = QFileInfo(filePath).fileName();
-        tracksList->addItem(fileName);
-    }
     
-    // If we have files but no selection, select the first one
-    if (tracksList->count() > 0 && tracksList->currentRow() < 0) {
-        tracksList->setCurrentRow(0);
+    // Group files by album
+    QMap<QString, QStringList> albumMap;
+    for (const QString &filePath : files) {
+        TagLib::FileRef file(filePath.toUtf8().constData());
+        if (!file.isNull()) {
+            TagLib::Tag *tag = file.tag();
+            if (tag) {
+                QString album = QString::fromStdString(tag->album().toCString(true));
+                if (album.isEmpty()) {
+                    album = "Unknown Album";
+                }
+                albumMap[album].append(filePath);
+            }
+        }
+    }
+
+    // Add albums to the albums list
+    for (auto it = albumMap.begin(); it != albumMap.end(); ++it) {
+        QListWidgetItem *item = new QListWidgetItem(it.key());
+        item->setData(Qt::UserRole, it.value()); // Store the file paths
+        albumsList->addItem(item);
+    }
+
+    // If we have albums but no selection, select the first one
+    if (albumsList->count() > 0 && albumsList->currentRow() < 0) {
+        albumsList->setCurrentRow(0);
     }
 }
 
@@ -834,9 +844,32 @@ void MainWindow::updateMetadata()
 
 void MainWindow::onItemDoubleClicked(QListWidgetItem *item)
 {
-    // Start playing the track from the beginning
-    mediaPlayer->setPosition(0);
-    mediaPlayer->play();
+    if (item->listWidget() == albumsList) {
+        // Get the list of files for this album
+        QStringList albumFiles = item->data(Qt::UserRole).toStringList();
+        
+        // Clear the tracks list and add all tracks from the album
+        tracksList->clear();
+        for (const QString &filePath : albumFiles) {
+            QFileInfo fileInfo(filePath);
+            QString fileName = fileInfo.fileName();
+            QListWidgetItem *trackItem = new QListWidgetItem(fileName);
+            trackItem->setData(Qt::UserRole, filePath);
+            tracksList->addItem(trackItem);
+        }
+        
+        // Start playing the first track
+        if (tracksList->count() > 0) {
+            tracksList->setCurrentRow(0);
+            QString firstTrack = tracksList->item(0)->data(Qt::UserRole).toString();
+            mediaPlayer->setSource(QUrl::fromLocalFile(firstTrack));
+            mediaPlayer->play();
+        }
+    } else {
+        // Handle track item click (existing behavior)
+        mediaPlayer->setPosition(0);
+        mediaPlayer->play();
+    }
 }
 
 void MainWindow::onMiniPlayerClicked()
@@ -895,5 +928,94 @@ void MainWindow::resizeEvent(QResizeEvent *event)
             // Set the pixmap
             fullscreenAlbumArt->setPixmap(scaledPixmap);
         }
+    }
+}
+
+void MainWindow::updateNowPlayingInfo()
+{
+    const QMediaMetaData metaData = mediaPlayer->metaData();
+    
+    // Get title
+    QString title = metaData.stringValue(QMediaMetaData::Title);
+    if (title.isEmpty()) {
+        QFileInfo fileInfo(mediaPlayer->source().toLocalFile());
+        title = fileInfo.baseName();
+    }
+    
+    // Get artist
+    QString artist = metaData.stringValue(QMediaMetaData::AlbumArtist);
+    if (artist.isEmpty()) {
+        artist = metaData.stringValue(QMediaMetaData::ContributingArtist);
+    }
+    if (artist.isEmpty()) {
+        artist = "Unknown Artist";
+    }
+
+    // Update labels
+    miniTitleLabel->setText(title);
+    miniArtistLabel->setText(artist);
+    fullscreenTitleLabel->setText(title);
+    fullscreenArtistLabel->setText(artist);
+
+    // Handle album art
+    QImage albumArt;
+    QVariant artData = metaData.value(QMediaMetaData::ThumbnailImage);
+    if (!artData.isValid()) {
+        artData = metaData.value(QMediaMetaData::CoverArtImage);
+    }
+    
+    if (artData.isValid()) {
+        albumArt = artData.value<QImage>();
+    }
+
+    if (!albumArt.isNull()) {
+        // Mini player album art
+        QPixmap miniArtPixmap = QPixmap::fromImage(albumArt)
+            .scaled(60, 60, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        
+        // Create a rounded version of the mini art
+        QPixmap roundedMiniArt(60, 60);
+        roundedMiniArt.fill(Qt::transparent);
+        
+        QPainter painter(&roundedMiniArt);
+        painter.setRenderHint(QPainter::Antialiasing);
+        
+        QPainterPath path;
+        path.addRoundedRect(0, 0, 60, 60, 5, 5);
+        painter.setClipPath(path);
+        
+        // Center the artwork in the rounded frame
+        int x = (60 - miniArtPixmap.width()) / 2;
+        int y = (60 - miniArtPixmap.height()) / 2;
+        painter.drawPixmap(x, y, miniArtPixmap);
+        
+        miniAlbumArt->setPixmap(roundedMiniArt);
+
+        // Fullscreen album art
+        int fullscreenSize = qMin(fullscreenAlbumArt->width(), fullscreenAlbumArt->height());
+        QPixmap fullscreenArtPixmap = QPixmap::fromImage(albumArt)
+            .scaled(fullscreenSize, fullscreenSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        
+        // Create a rounded version of the fullscreen art
+        QPixmap roundedFullscreenArt(fullscreenSize, fullscreenSize);
+        roundedFullscreenArt.fill(Qt::transparent);
+        
+        QPainter fullscreenPainter(&roundedFullscreenArt);
+        fullscreenPainter.setRenderHint(QPainter::Antialiasing);
+        
+        QPainterPath fullscreenPath;
+        fullscreenPath.addRoundedRect(0, 0, fullscreenSize, fullscreenSize, 10, 10);
+        fullscreenPainter.setClipPath(fullscreenPath);
+        
+        // Center the artwork in the rounded frame
+        x = (fullscreenSize - fullscreenArtPixmap.width()) / 2;
+        y = (fullscreenSize - fullscreenArtPixmap.height()) / 2;
+        fullscreenPainter.drawPixmap(x, y, fullscreenArtPixmap);
+        
+        fullscreenAlbumArt->setPixmap(roundedFullscreenArt);
+    } else {
+        // Set placeholder images
+        miniAlbumArt->setPixmap(QIcon::fromTheme("media-optical-audio").pixmap(60, 60));
+        fullscreenAlbumArt->setPixmap(QIcon::fromTheme("media-optical-audio").pixmap(200, 200));
     }
 } 
